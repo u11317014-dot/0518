@@ -19,7 +19,7 @@
         @keyframes popIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
         @keyframes confettiFall {
             0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
-            100% { transform: translateY(400px) rotate(360deg); opacity: 0; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
         }
         @keyframes fruitDrop {
             0% { transform: translateY(0) scale(1); opacity: 1; }
@@ -38,6 +38,27 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+
+        // --- 繽紛紙屑組件 ---
+        const Confetti = () => {
+            const colors = ['#FFC107', '#FF5722', '#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#4CAF50', '#8BC34A'];
+            return (
+                <div className="fixed inset-0 pointer-events-none overflow-hidden z-50">
+                    {Array.from({ length: 50 }).map((_, i) => {
+                        const style = {
+                            left: `${Math.random() * 100}%`,
+                            top: `-5%`,
+                            backgroundColor: colors[Math.grow = Math.floor(Math.random() * colors.length)],
+                            width: `${Math.random() * 8 + 8}px`,
+                            height: `${Math.random() * 8 + 8}px`,
+                            animationDelay: `${Math.random() * 2}s`,
+                            animationDuration: `${Math.random() * 2 + 2}s`
+                        };
+                        return <div key={i} className="animate-confetti rounded-sm" style={style} />;
+                    })}
+                </div>
+            );
+        };
 
         // --- 第一階段：著色關卡資料 ---
         const COLOR_LEVELS = [
@@ -146,7 +167,7 @@
             const currentColorLevel = COLOR_LEVELS[levelIdx];
             const currentCountLevel = COUNT_LEVELS[levelIdx];
 
-            // 語音核心
+            // 語音播放
             const speakBilingual = (zhText, enText) => {
                 if ('speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
@@ -177,7 +198,7 @@
             };
 
             const initCanvas = () => {
-                if (gameStage !== 'color' || !canvasRef.current) return;
+                if (gameStage !== 'color' || !canvasRef.current || !maskCanvasRef.current) return;
                 const canvas = canvasRef.current;
                 const ctx = canvas.getContext('2d');
                 ctxRef.current = ctx;
@@ -191,9 +212,13 @@
                 mCtx.fill(pathObj);
             };
 
+            // 監聽關卡重設
             useEffect(() => {
                 if (gameStage === 'color') {
-                    initCanvas();
+                    // 稍微延遲確保 DOM 已經被 React 更新完畢才抓得到 canvas
+                    setTimeout(() => {
+                        initCanvas();
+                    }, 50);
                     setCoverage(0);
                 } else {
                     setBasketCount(0);
@@ -203,9 +228,10 @@
                 setSelectedColor(null); 
                 setTimeout(() => {
                     speakQuestion();
-                }, 150);
+                }, 200);
             }, [levelIdx, gameStage]);
 
+            // 下一關卡按鈕核心控制
             const handleNextLevel = () => {
                 if (gameStage === 'color') {
                     if (levelIdx + 1 < COLOR_LEVELS.length) {
@@ -316,7 +342,10 @@
 
             const drawSegment = (x1, y1, x2, y2) => {
                 const ctx = ctxRef.current;
+                if (!ctx) return;
                 ctx.save();
+                ctx.beginPath();
+                ctx.clip(new Path2D(currentColorLevel.path)); 
                 ctx.globalAlpha = 0.85; 
                 ctx.lineWidth = 26; 
                 ctx.lineCap = 'round';
@@ -387,14 +416,14 @@
                 <div className="min-h-screen flex flex-col items-center p-6 font-sans select-none max-w-xl mx-auto relative">
                     <canvas ref={maskCanvasRef} width="200" height="200" className="hidden" />
                     
-                    {/* 頂部導覽列 */}
+                    {/* 頂部導覽 */}
                     <header className="w-full flex items-center justify-center bg-orange-400 text-white py-3 px-6 rounded-3xl shadow-md mb-6">
                         <h1 className="font-bold text-2xl tracking-wider">
                             {gameStage === 'color' ? '🎨 繪本第一章：認識特徵' : '🧺 繪本第二章：快樂採收'}
                         </h1>
                     </header>
 
-                    {/* 大問句字幕區 */}
+                    {/* 題目框區 */}
                     <div className="w-full bg-white px-6 py-5 rounded-[32px] shadow-sm mb-6 border-2 border-orange-100 text-center relative flex flex-col justify-center items-center">
                         <h2 className="text-3xl font-black text-gray-800 tracking-wider">
                             {gameStage === 'color' ? `${currentColorLevel.objectName.zh}是什麼顏色的呢？` : currentCountLevel.questionZh}
@@ -410,20 +439,17 @@
                         </button>
                     </div>
 
-                    {/* 繪本核心互動區 */}
+                    {/* 繪本主畫面互動區 */}
                     <div className="relative w-full aspect-square bg-white rounded-[45px] shadow-2xl border-[12px] border-white overflow-hidden mb-6 flex items-center justify-center p-0">
-                        {/* 網格線 */}
                         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(#000 1.5px, transparent 1.5px), linear-gradient(90deg, #000 1.5px, transparent 1.5px)', backgroundSize: '25px 25px', zIndex: 1 }} />
                         
-                        {/* 著色關卡介面 (核心優化：改用 HTML 原生分層定位，iPad 100% 抓得到觸控，且絕對封鎖溢出！) */}
+                        {/* 著色舞台 */}
                         {gameStage === 'color' && (
-                            <div className="relative w-[200px] h-[200px] flex items-center justify-center touch-none">
-                                {/* 第一層：淡色底圖線 */}
+                            <div key={levelIdx} className="relative w-[200px] h-[200px] flex items-center justify-center touch-none animate-fade-in">
                                 <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full pointer-events-none z-10">
                                     <path d={currentColorLevel.path} fill="#FAFAFA" stroke="#EAEAEA" strokeWidth="1" />
                                 </svg>
 
-                                {/* 第二層：上色 Canvas 畫布（搬出 SVG 外，採用 React 字串範本安全卡死黑框範圍） */}
                                 <div 
                                     className="absolute inset-0 w-full h-full"
                                     style={{ 
@@ -447,7 +473,6 @@
                                     />
                                 </div>
 
-                                {/* 第三層：最上層粗黑墨線（永不被顏色覆蓋） */}
                                 <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 30 }}>
                                     <path d={currentColorLevel.path} fill="none" stroke="#2D3436" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                                     {renderLevelDetails(currentColorLevel.id)}
@@ -455,9 +480,9 @@
                             </div>
                         )}
 
-                        {/* 數數採摘關卡介面 */}
+                        {/* 數數採摘舞台 */}
                         {gameStage === 'count' && (
-                            <div className="relative w-full h-full p-4 flex flex-col justify-between items-center">
+                            <div key={`count-${levelIdx}`} className="relative w-full h-full p-4 flex flex-col justify-between items-center animate-fade-in">
                                 <div className="relative w-full h-[62%] bg-green-100 rounded-[36px] border-4 border-dashed border-green-300 p-2 overflow-hidden shadow-inner">
                                     <div className="absolute inset-0 flex items-center justify-center text-green-200 opacity-20 text-9xl">🌳</div>
                                     
@@ -491,7 +516,7 @@
                         )}
                     </div>
 
-                    {/* 水果圖卡名牌 */}
+                    {/* 水果標籤卡片 */}
                     <div className="w-full bg-orange-100/70 border-2 border-dashed border-orange-300 rounded-3xl p-4 text-center mb-6 shadow-inner">
                         <div className="text-3xl font-black text-orange-900 flex items-center justify-center gap-2">
                             <span>{gameStage === 'color' ? currentColorLevel.emoji : currentCountLevel.emoji}</span>
@@ -502,7 +527,7 @@
                         </div>
                     </div>
 
-                    {/* 底部互動控制區 */}
+                    {/* 控制欄區 */}
                     {gameStage === 'color' ? (
                         <div className="w-full bg-white/95 backdrop-blur-md p-5 rounded-[36px] shadow-xl border border-white">
                             <div className="grid grid-cols-4 gap-4 mb-3 justify-items-center">
@@ -555,15 +580,18 @@
                                 }}
                                 className="inline-flex items-center justify-center gap-2 bg-amber-500 text-white font-black text-lg py-3 px-8 rounded-2xl shadow-md hover:bg-amber-600 active:scale-95 transition-all w-full"
                             >
-                                <RotateCcwIcon /> 重新把水果掛回樹上
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                                重新把水果掛回樹上
                             </button>
                         </div>
                     )}
 
-                    {/* 終極過關彈窗 (移至與 root 同級之最上層，搭配最高級 z-50，100% 點擊復活，絕不卡死) */}
+                    {/* 最上層過關跳窗 */}
                     {isCompleted && (
                         <div className="fixed inset-0 z-50 bg-white/85 backdrop-blur-sm flex items-center justify-center animate-fade-in text-center p-4">
-                            <div className="animate-pop-in bg-white p-6 rounded-[35px] shadow-2xl border-4 border-green-400 max-w-[300px] w-full">
+                            <div className="animate-pop-in bg-white p-6 rounded-[35px] shadow-2xl border-4 border-green-400 max-w-[300px] w-full z-50">
                                 <div className="text-3xl mb-2 flex justify-center gap-1.5">
                                     ⭐️ ⭐ ⭐️
                                 </div>
