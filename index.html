@@ -39,6 +39,27 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // --- 簡易五彩紙屑元件 ---
+        const Confetti = () => {
+            const colors = ['#FF3D00', '#FFD600', '#4CAF50', '#2196F3', '#9C27B0', '#FF9800'];
+            return (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden z-40">
+                    {Array.from({ length: 30 }).map((_, i) => {
+                        const style = {
+                            left: `${Math.random() * 100}%`,
+                            top: `-10px`,
+                            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+                            width: `${Math.random() * 8 + 6}px`,
+                            height: `${Math.random() * 8 + 6}px`,
+                            animationDelay: `${Math.random() * 2}s`,
+                            animationDuration: `${Math.random() * 2 + 2}s`
+                        };
+                        return <div key={i} className="animate-confetti rounded-sm" style={style} />;
+                    })}
+                </div>
+            );
+        };
+
         // --- 第一階段：著色關卡資料 ---
         const COLOR_LEVELS = [
             { 
@@ -182,7 +203,7 @@
             };
 
             const initCanvas = () => {
-                if (gameStage !== 'color' || !canvasRef.current) return;
+                if (gameStage !== 'color' || !canvasRef.current || !maskCanvasRef.current) return;
                 const canvas = canvasRef.current;
                 const ctx = canvas.getContext('2d');
                 ctxRef.current = ctx;
@@ -321,6 +342,7 @@
 
             const drawSegment = (x1, y1, x2, y2) => {
                 const ctx = ctxRef.current;
+                if (!ctx) return;
                 ctx.save();
                 ctx.beginPath();
                 ctx.clip(new Path2D(currentColorLevel.path)); 
@@ -366,6 +388,7 @@
                 if (!isDrawing) return;
                 setIsDrawing(false);
                 
+                if (!ctxRef.current || !maskCanvasRef.current) return;
                 const drawData = ctxRef.current.getImageData(0,0,200,200).data;
                 const maskData = maskCanvasRef.current.getContext('2d').getImageData(0,0,200,200).data;
                 let totalPixels = 0, coloredPixels = 0;
@@ -422,7 +445,7 @@
                         
                         {/* 著色關卡舞台 */}
                         {gameStage === 'color' && (
-                            /* 核心修正：加上 key={levelIdx}，當關卡改變時，強制 React 刷新重建組件，絕不留存上一關的畫布 */
+                            /* 核心修正：加上含有 levelIdx 的唯一 key，強迫 React 換關時完整重刷 Canvas 節點 */
                             <div key={`color-stage-${levelIdx}`} className="relative w-[200px] h-[200px] flex items-center justify-center touch-none animate-fade-in">
                                 <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full pointer-events-none z-10">
                                     <path d={currentColorLevel.path} fill="#FAFAFA" stroke="#EAEAEA" strokeWidth="1" />
@@ -449,6 +472,8 @@
                                         onTouchEnd={handleEnd}
                                         className="absolute inset-0 w-full h-full cursor-crosshair"
                                     />
+                                    {/* 隱藏的計算遮罩畫布 */}
+                                    <canvas ref={maskCanvasRef} width="200" height="200" className="hidden" />
                                 </div>
 
                                 <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 30 }}>
@@ -570,10 +595,10 @@
                         </div>
                     )}
 
-                    {/* 繪本翻頁過關彈窗 (最高級 Z-Index 固定圖層) */}
+                    {/* 繪本翻頁過關彈窗 */}
                     {isCompleted && (
                         <div className="fixed inset-0 z-50 bg-white/85 backdrop-blur-sm flex items-center justify-center animate-fade-in text-center p-4">
-                            <div className="animate-pop-in bg-white p-6 rounded-[35px] shadow-2xl border-4 border-green-400 max-w-[300px] w-full">
+                            <div className="animate-pop-in bg-white p-6 rounded-[35px] shadow-2xl border-4 border-green-400 max-w-[300px] w-full relative z-50">
                                 <div className="text-3xl mb-2 flex justify-center gap-1.5">
                                     ⭐️ ⭐ ⭐️
                                 </div>
